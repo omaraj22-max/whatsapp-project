@@ -13,26 +13,20 @@ export async function POST() {
 
     let synced = 0;
     for (const mt of metaTemplates) {
-      await prisma.template.upsert({
-        where: { name: mt.name },
-        update: {
-          waId: mt.id,
-          status: mt.status?.toLowerCase() || "pending",
-          category: mt.category,
-          language: mt.language,
-          components: mt.components || [],
-          rejectedReason: mt.rejected_reason || null,
-        },
-        create: {
-          waId: mt.id,
-          name: mt.name,
-          category: mt.category,
-          language: mt.language,
-          status: mt.status?.toLowerCase() || "pending",
-          components: mt.components || [],
-          rejectedReason: mt.rejected_reason || null,
-        },
-      });
+      const existing = await prisma.template.findUnique({ where: { name: mt.name } });
+      const payload = {
+        waId: mt.id,
+        status: mt.status?.toLowerCase() || "pending",
+        category: mt.category,
+        language: mt.language,
+        components: mt.components || [],
+        rejectedReason: mt.rejected_reason || null,
+      };
+      if (existing) {
+        await prisma.template.update({ where: { name: mt.name }, data: payload });
+      } else {
+        await prisma.template.create({ data: { name: mt.name, ...payload } });
+      }
       synced++;
     }
 

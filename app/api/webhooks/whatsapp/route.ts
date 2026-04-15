@@ -48,12 +48,11 @@ async function processInboundMessage(inbound: {
 }) {
   const phone = inbound.from;
 
-  // Upsert contact
-  const contact = await prisma.contact.upsert({
-    where: { phone },
-    update: {},
-    create: { phone },
-  });
+  // Find or create contact (no upsert — not supported in HTTP mode)
+  let contact = await prisma.contact.findUnique({ where: { phone } });
+  if (!contact) {
+    contact = await prisma.contact.create({ data: { phone } });
+  }
 
   // Get or create open conversation
   let conversation = await prisma.conversation.findFirst({

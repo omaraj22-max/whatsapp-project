@@ -36,13 +36,14 @@ export async function POST(request: Request) {
 
     for (const key of PUBLIC_KEYS) {
       if (key in body && body[key] !== undefined) {
-        await prisma.setting.upsert({
-          where: { key },
-          update: { value: String(body[key]) },
-          create: { key, value: String(body[key]) },
-        });
-        // Also set as process env for current runtime
-        process.env[key] = String(body[key]);
+        const value = String(body[key]);
+        const existing = await prisma.setting.findUnique({ where: { key } });
+        if (existing) {
+          await prisma.setting.update({ where: { key }, data: { value } });
+        } else {
+          await prisma.setting.create({ data: { key, value } });
+        }
+        process.env[key] = value;
       }
     }
 
