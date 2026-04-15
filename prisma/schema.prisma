@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Contact {
+  id            String         @id @default(cuid())
+  phone         String         @unique
+  name          String?
+  email         String?
+  mondayItemId  String?
+  mondayBoardId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  contactId     String
+  contact       Contact   @relation(fields: [contactId], references: [id])
+  status        String    @default("open") // open, closed, waiting
+  agentMode     String    @default("human") // human, ai, auto
+  agentConfig   Json?     // { mode: "keyword"|"timeout", keyword?: string, timeoutMinutes?: number }
+  assignedTo    String?
+  lastMessageAt DateTime?
+  unreadCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  messages      Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  waMessageId    String?      @unique
+  direction      String // inbound, outbound
+  type           String // text, template, image, document, audio
+  content        String
+  metadata       Json?
+  status         String? // sent, delivered, read, failed
+  sentBy         String? // "human" | "ai" | user email
+  createdAt      DateTime     @default(now())
+}
+
+model Template {
+  id             String   @id @default(cuid())
+  waId           String?
+  name           String   @unique
+  category       String // MARKETING, UTILITY, AUTHENTICATION
+  language       String   @default("es")
+  status         String   @default("pending") // pending, approved, rejected, paused, in_appeal, disabled
+  components     Json // [{ type: "HEADER"|"BODY"|"FOOTER"|"BUTTONS", text?: string, ... }]
+  rejectedReason String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  trigger     String // monday_lead_created, monday_status_changed, message_received, keyword_received
+  conditions  Json? // trigger-specific conditions
+  actions     Json // [{ type: "send_template"|"send_message"|"assign_ai"|"notify", ... }]
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
