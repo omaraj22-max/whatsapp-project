@@ -136,7 +136,7 @@ async function handleAIAgent(
     } else if (config?.mode === "timeout" && config.timeoutMinutes) {
       // Check last human message time
       const lastHumanMsg = conversation.messages
-        .filter((m) => m.direction === "outbound" && m.sentBy === "human")
+        .filter((m: { direction: string; sentBy: string | null }) => m.direction === "outbound" && m.sentBy === "human")
         .pop();
 
       if (!lastHumanMsg) {
