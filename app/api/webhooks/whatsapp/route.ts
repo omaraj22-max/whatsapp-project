@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyWebhook, parseWebhookPayload, markMessageRead } from "@/lib/whatsapp";
 import { generateReply, buildConversationHistory } from "@/lib/openai";
-import { sendTextMessage } from "@/lib/whatsapp";
 import { runWorkflowsForInboundMessage } from "@/lib/workflows";
+import { getSetting } from "@/lib/settings";
 
 // ─── GET: Webhook verification ────────────────────────────────────────────────
 
@@ -151,15 +151,39 @@ async function handleAIAgent(
   if (!shouldRespond) return;
 
   try {
-    const systemPrompt = process.env.OPENAI_SYSTEM_PROMPT;
+    const systemPrompt = await getSetting("OPENAI_SYSTEM_PROMPT");
+    const openaiKey = await getSetting("OPENAI_API_KEY");
+    if (!openaiKey) return;
+
     const history = buildConversationHistory(conversation.messages);
     const reply = await generateReply(history, systemPrompt);
 
     if (!reply) return;
 
-    // Send via WhatsApp
-    const res = await sendTextMessage(phone, reply);
-    const waMessageId = res?.messages?.[0]?.id;
+    // Send via WhatsApp using token from DB
+    const accessToken = await getSetting("META_ACCESS_TOKEN");
+    const phoneNumberId = await getSetting("META_PHONE_NUMBER_ID");
+    let waMessageId: string | undefined;
+    if (accessToken && phoneNumberId) {
+      const res = await fetch(
+        `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: phone,
+            type: "text",
+            text: { body: reply },
+          }),
+        }
+      );
+      const data = await res.json() as { messages?: { id: string }[] };
+      waMessageId = data?.messages?.[0]?.id;
+    }
 
     // Save AI message
     await prisma.message.create({

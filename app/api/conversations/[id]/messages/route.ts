@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTextMessage } from "@/lib/whatsapp";
+import { getSetting } from "@/lib/settings";
 
 export async function GET(
   _request: Request,
@@ -34,12 +34,32 @@ export async function POST(
 
     if (!conversation) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Send via WhatsApp API
+    // Read credentials from DB (so they update without redeploying)
+    const accessToken = await getSetting("META_ACCESS_TOKEN");
+    const phoneNumberId = await getSetting("META_PHONE_NUMBER_ID");
+
     let waMessageId: string | undefined;
-    if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
+    if (accessToken && phoneNumberId) {
       try {
-        const res = await sendTextMessage(conversation.contact.phone, content);
-        waMessageId = res?.messages?.[0]?.id;
+        const res = await fetch(
+          `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              to: conversation.contact.phone,
+              type: "text",
+              text: { body: content },
+            }),
+          }
+        );
+        const data = await res.json() as { messages?: { id: string }[] };
+        waMessageId = data?.messages?.[0]?.id;
+        if (!res.ok) console.error("WhatsApp send error:", data);
       } catch (err) {
         console.error("WhatsApp send error:", err);
       }
