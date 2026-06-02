@@ -1,12 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Bot, User, RefreshCw, Search, Phone, MoreVertical } from "lucide-react";
+import { Send, Bot, User, RefreshCw, Search, Phone, LayoutTemplate, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { timeAgo, formatPhone, formatDateTime } from "@/lib/utils";
+
+interface Template {
+  id: string;
+  name: string;
+  category: string;
+  language: string;
+  status: string;
+  components: { type: string; text?: string }[];
+}
 
 interface Contact {
   id: string;
@@ -42,6 +51,8 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchConversations = useCallback(async () => {
@@ -61,11 +72,20 @@ export default function InboxPage() {
     }
   }, []);
 
+  const fetchTemplates = useCallback(async () => {
+    const res = await fetch("/api/templates");
+    if (res.ok) {
+      const data = await res.json();
+      setTemplates(data.filter((t: Template) => t.status === "approved"));
+    }
+  }, []);
+
   useEffect(() => {
     fetchConversations();
+    fetchTemplates();
     const interval = setInterval(fetchConversations, 10000);
     return () => clearInterval(interval);
-  }, [fetchConversations]);
+  }, [fetchConversations, fetchTemplates]);
 
   useEffect(() => {
     if (selected) {
@@ -82,7 +102,6 @@ export default function InboxPage() {
   const selectConversation = (conv: Conversation) => {
     setSelected(conv);
     fetchMessages(conv.id);
-    // mark as read
     setConversations((prev) =>
       prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
     );
@@ -99,6 +118,31 @@ export default function InboxPage() {
       });
       if (res.ok) {
         setText("");
+        fetchMessages(selected.id);
+        fetchConversations();
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendTemplate = async (template: Template) => {
+    if (!selected) return;
+    setSending(true);
+    setShowTemplates(false);
+    try {
+      const bodyComponent = template.components.find((c) => c.type === "BODY");
+      const res = await fetch(`/api/conversations/${selected.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: bodyComponent?.text || template.name,
+          type: "template",
+          templateName: template.name,
+          templateLanguage: template.language,
+        }),
+      });
+      if (res.ok) {
         fetchMessages(selected.id);
         fetchConversations();
       }
@@ -167,7 +211,6 @@ export default function InboxPage() {
                   selected?.id === conv.id ? "bg-emerald-50 border-l-2 border-l-emerald-500" : ""
                 }`}
               >
-                {/* Avatar */}
                 <div className="relative shrink-0">
                   <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-sm font-medium text-emerald-700">
                     {(conv.contact.name || conv.contact.phone)[0].toUpperCase()}
@@ -177,7 +220,6 @@ export default function InboxPage() {
                   />
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 truncate">
@@ -272,6 +314,12 @@ export default function InboxPage() {
                       <span className="text-xs">IA</span>
                     </div>
                   )}
+                  {msg.type === "template" && (
+                    <div className="flex items-center gap-1 mb-1 opacity-70">
+                      <LayoutTemplate className="w-3 h-3" />
+                      <span className="text-xs">Template</span>
+                    </div>
+                  )}
                   <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                   <p
                     className={`text-xs mt-1 ${
@@ -290,34 +338,79 @@ export default function InboxPage() {
           </div>
 
           {/* Input */}
-          <div className="px-4 py-3 bg-white border-t border-gray-200">
-            {selected.agentMode === "ai" && (
-              <p className="text-xs text-purple-600 mb-2 flex items-center gap-1">
-                <Bot className="w-3 h-3" />
-                El agente de IA está manejando esta conversación
-              </p>
+          <div className="bg-white border-t border-gray-200">
+            {/* Template panel */}
+            {showTemplates && (
+              <div className="border-b border-gray-200 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-gray-600">Seleccionar template</span>
+                  <button onClick={() => setShowTemplates(false)}>
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                </div>
+                {templates.length === 0 ? (
+                  <p className="text-xs text-gray-400">No hay templates aprobados. Sincroniza en la sección de Templates.</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {templates.map((t) => {
+                      const body = t.components.find((c) => c.type === "BODY");
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => sendTemplate(t)}
+                          disabled={sending}
+                          className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors"
+                        >
+                          <p className="text-xs font-medium text-gray-800">{t.name}</p>
+                          {body?.text && (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{body.text}</p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
-            <div className="flex items-end gap-2">
-              <Input
-                placeholder="Escribe un mensaje..."
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button
-                onClick={sendMessage}
-                disabled={sending || !text.trim()}
-                size="icon"
-                className="shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
+
+            <div className="px-4 py-3">
+              {selected.agentMode === "ai" && (
+                <p className="text-xs text-purple-600 mb-2 flex items-center gap-1">
+                  <Bot className="w-3 h-3" />
+                  El agente de IA está manejando esta conversación
+                </p>
+              )}
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => setShowTemplates((v) => !v)}
+                  title="Enviar template"
+                >
+                  <LayoutTemplate className="w-4 h-4 text-gray-500" />
+                </Button>
+                <Input
+                  placeholder="Escribe un mensaje..."
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={sendMessage}
+                  disabled={sending || !text.trim()}
+                  size="icon"
+                  className="shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

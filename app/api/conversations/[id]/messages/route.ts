@@ -25,7 +25,7 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
-    const { content, type = "text" } = await request.json();
+    const { content, type = "text", templateName, templateLanguage } = await request.json();
 
     const conversation = await prisma.conversation.findUnique({
       where: { id },
@@ -34,13 +34,30 @@ export async function POST(
 
     if (!conversation) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Read credentials from DB (so they update without redeploying)
     const accessToken = await getSetting("META_ACCESS_TOKEN");
     const phoneNumberId = await getSetting("META_PHONE_NUMBER_ID");
 
     let waMessageId: string | undefined;
     if (accessToken && phoneNumberId) {
       try {
+        const isTemplate = type === "template" && templateName;
+        const body = isTemplate
+          ? {
+              messaging_product: "whatsapp",
+              to: conversation.contact.phone,
+              type: "template",
+              template: {
+                name: templateName,
+                language: { code: templateLanguage || "es" },
+              },
+            }
+          : {
+              messaging_product: "whatsapp",
+              to: conversation.contact.phone,
+              type: "text",
+              text: { body: content },
+            };
+
         const res = await fetch(
           `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
           {
@@ -49,12 +66,7 @@ export async function POST(
               Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              to: conversation.contact.phone,
-              type: "text",
-              text: { body: content },
-            }),
+            body: JSON.stringify(body),
           }
         );
         const data = await res.json() as { messages?: { id: string }[] };
