@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const conversations = await prisma.conversation.findMany({
-      where: { status: { in: ["open", "waiting"] } },
       include: {
         contact: true,
         messages: {
@@ -14,7 +13,16 @@ export async function GET() {
       },
       orderBy: { lastMessageAt: "desc" },
     });
-    return NextResponse.json(conversations);
+
+    // One entry per phone number — keep the most recent conversation per contact
+    const seen = new Set<string>();
+    const deduped = conversations.filter((c) => {
+      if (seen.has(c.contactId)) return false;
+      seen.add(c.contactId);
+      return true;
+    });
+
+    return NextResponse.json(deduped);
   } catch (error) {
     console.error("GET /api/conversations error:", error);
     return NextResponse.json({ error: "Error al obtener conversaciones" }, { status: 500 });
