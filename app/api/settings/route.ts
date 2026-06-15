@@ -12,6 +12,7 @@ const PUBLIC_KEYS = [
   "OPENAI_MODEL",
   "OPENAI_SYSTEM_PROMPT",
   "SHEETS_WEBHOOK_URL",
+  "WELCOME_TEMPLATE_NAME",
 ];
 
 export async function GET() {

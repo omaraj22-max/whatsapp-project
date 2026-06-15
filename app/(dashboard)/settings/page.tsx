@@ -18,6 +18,7 @@ interface Settings {
   OPENAI_MODEL: string;
   OPENAI_SYSTEM_PROMPT: string;
   SHEETS_WEBHOOK_URL: string;
+  WELCOME_TEMPLATE_NAME: string;
 }
 
 interface SettingFieldProps {
@@ -92,6 +93,7 @@ export default function SettingsPage() {
     OPENAI_MODEL: "gpt-4o",
     OPENAI_SYSTEM_PROMPT: "",
     SHEETS_WEBHOOK_URL: "",
+    WELCOME_TEMPLATE_NAME: "",
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -369,6 +371,14 @@ export default function SettingsPage() {
             hint="URL de tu Google Apps Script"
           />
 
+          <SettingField
+            label="Template de bienvenida (Lead Ads)"
+            value={settings.WELCOME_TEMPLATE_NAME}
+            onChange={set("WELCOME_TEMPLATE_NAME")}
+            placeholder="bienvenida_dgroup"
+            hint="Nombre exacto del template aprobado en Meta"
+          />
+
           <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-xs text-green-800 space-y-2">
             <p className="font-medium">Cómo configurarlo:</p>
             <ol className="space-y-1 list-decimal list-inside">
@@ -377,7 +387,17 @@ export default function SettingsPage() {
               <li>Pega el script que te proporcionamos</li>
               <li>Despliega como aplicación web (acceso: Cualquiera)</li>
               <li>Copia la URL y pégala aquí</li>
+              <li>En Apps Script → Propiedades, pon <strong>OUTBOUND_WEBHOOK_URL</strong> = la URL de abajo</li>
             </ol>
+            <div className="bg-white rounded border border-green-200 px-3 py-2 flex items-center justify-between gap-2 mt-1">
+              <code className="text-xs text-gray-700 truncate">{typeof window !== "undefined" ? `${window.location.origin}/api/leads/inbound` : "/api/leads/inbound"}</code>
+              <button
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/leads/inbound`)}
+                className="text-green-700 hover:text-green-900 text-xs shrink-0"
+              >
+                Copiar
+              </button>
+            </div>
           </div>
         </section>
       </div>
