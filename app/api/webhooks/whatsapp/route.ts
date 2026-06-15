@@ -211,18 +211,15 @@ async function handleAIAgent(
       data: { lastMessageAt: new Date() },
     });
 
-    // Update Google Sheets with extracted lead data (every 3 messages to avoid excess calls)
-    const msgCount = conversation.messages.length;
-    if (msgCount % 3 === 0 || msgCount <= 3) {
-      const sheetsUrl = await getSetting("SHEETS_WEBHOOK_URL");
-      if (sheetsUrl) {
-        const updatedHistory = [
-          ...buildConversationHistory(conversation.messages),
-          { role: "assistant" as const, content: reply },
-        ];
-        const leadData = await extractLeadData(updatedHistory, phone, openaiKey);
-        await sendLeadToSheets(sheetsUrl, { ...leadData, conversationId, phone });
-      }
+    // Update Google Sheets after every AI reply to capture new data immediately
+    const sheetsUrl = await getSetting("SHEETS_WEBHOOK_URL");
+    if (sheetsUrl) {
+      const updatedHistory = [
+        ...buildConversationHistory(conversation.messages),
+        { role: "assistant" as const, content: reply },
+      ];
+      const leadData = await extractLeadData(updatedHistory, phone, openaiKey);
+      await sendLeadToSheets(sheetsUrl, { ...leadData, conversationId, phone });
     }
   } catch (err) {
     console.error("AI agent error:", err);
