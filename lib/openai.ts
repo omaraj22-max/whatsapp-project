@@ -67,9 +67,13 @@ Devuelve SOLO un objeto JSON válido con estos campos (usa null si no se mencion
   "bedrooms": "número de recámaras o null",
   "qualification": "calificado | no calificado | pendiente",
   "recommendedProject": "proyecto recomendado o null",
+  "buscaRecomendaciones": "SÍ | NO | null",
+  "modalidadCita": "videollamada | presencial | telefónica | null",
   "lastMessage": "resumen en una frase de la última respuesta del lead"
 }
-Un lead está CALIFICADO si su presupuesto es mayor a 6 millones de pesos.`,
+Un lead está CALIFICADO si su presupuesto es mayor a 6 millones de pesos.
+buscaRecomendaciones es SÍ si el cliente dijo frases como 'no sé', 'tú dime', 'recomiéndame', 'lo que tú veas'.
+modalidadCita es el formato de sesión que prefiere el lead una vez calificado (videollamada, presencial o telefónica).`,
       },
       {
         role: "user",

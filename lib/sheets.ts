@@ -8,6 +8,8 @@ export interface LeadData {
   bedrooms?: string;
   qualification?: string;
   recommendedProject?: string;
+  buscaRecomendaciones?: string;
+  modalidadCita?: string;
   lastMessage?: string;
   conversationId?: string;
 }
