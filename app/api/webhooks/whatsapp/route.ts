@@ -124,11 +124,15 @@ async function handleAIAgent(
     where: { id: conversationId },
     include: {
       messages: {
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 30,
       },
     },
   });
+
+  if (conversation) {
+    conversation.messages = conversation.messages.reverse();
+  }
 
   if (!conversation) return;
 
