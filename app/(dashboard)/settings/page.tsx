@@ -17,6 +17,7 @@ interface Settings {
   OPENAI_API_KEY: string;
   OPENAI_MODEL: string;
   OPENAI_SYSTEM_PROMPT: string;
+  SHEETS_WEBHOOK_URL: string;
 }
 
 interface SettingFieldProps {
@@ -90,6 +91,7 @@ export default function SettingsPage() {
     OPENAI_API_KEY: "",
     OPENAI_MODEL: "gpt-4o",
     OPENAI_SYSTEM_PROMPT: "",
+    SHEETS_WEBHOOK_URL: "",
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -344,6 +346,38 @@ export default function SettingsPage() {
             <p>• <strong>Humano:</strong> Solo el operador responde</p>
             <p>• <strong>IA:</strong> El agente responde automáticamente</p>
             <p>• <strong>Auto:</strong> Se activa según keyword o timeout (configurable en cada conversación)</p>
+          </div>
+        </section>
+
+        {/* Google Sheets CRM */}
+        <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+              <span className="text-sm">📊</span>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Google Sheets CRM</h2>
+              <p className="text-xs text-gray-400">Registra leads automáticamente en tu hoja de cálculo</p>
+            </div>
+          </div>
+
+          <SettingField
+            label="Webhook URL de Apps Script"
+            value={settings.SHEETS_WEBHOOK_URL}
+            onChange={set("SHEETS_WEBHOOK_URL")}
+            placeholder="https://script.google.com/macros/s/..."
+            hint="URL de tu Google Apps Script"
+          />
+
+          <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-xs text-green-800 space-y-2">
+            <p className="font-medium">Cómo configurarlo:</p>
+            <ol className="space-y-1 list-decimal list-inside">
+              <li>Crea un Google Sheet con las columnas del CRM</li>
+              <li>Ve a Extensiones → Apps Script</li>
+              <li>Pega el script que te proporcionamos</li>
+              <li>Despliega como aplicación web (acceso: Cualquiera)</li>
+              <li>Copia la URL y pégala aquí</li>
+            </ol>
           </div>
         </section>
       </div>

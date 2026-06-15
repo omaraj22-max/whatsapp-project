@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyWebhook, parseWebhookPayload, markMessageRead } from "@/lib/whatsapp";
-import { generateReply, buildConversationHistory } from "@/lib/openai";
+import { generateReply, buildConversationHistory, extractLeadData } from "@/lib/openai";
 import { runWorkflowsForInboundMessage } from "@/lib/workflows";
 import { getSetting } from "@/lib/settings";
+import { sendLeadToSheets } from "@/lib/sheets";
 
 // ─── GET: Webhook verification ────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
-
     const inboundMessages = parseWebhookPayload(body);
 
     for (const inbound of inboundMessages) {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "ok" });
   } catch (error) {
     console.error("WhatsApp webhook error:", error);
-    return NextResponse.json({ status: "ok" }); // Always return 200 to Meta
+    return NextResponse.json({ status: "ok" });
   }
 }
 
@@ -48,28 +48,27 @@ async function processInboundMessage(inbound: {
 }) {
   const phone = inbound.from;
 
-  // Find or create contact (no upsert — not supported in HTTP mode)
   let contact = await prisma.contact.findUnique({ where: { phone } });
+  const isNewContact = !contact;
   if (!contact) {
     contact = await prisma.contact.create({ data: { phone } });
   }
 
-  // Get or create open conversation
   let conversation = await prisma.conversation.findFirst({
     where: { contactId: contact.id, status: { in: ["open", "waiting"] } },
   });
 
+  const isNewConversation = !conversation;
   if (!conversation) {
     conversation = await prisma.conversation.create({
       data: {
         contactId: contact.id,
         status: "open",
-        agentMode: "human",
+        agentMode: "ai", // Default AI mode for Alex agent
       },
     });
   }
 
-  // Save inbound message
   await prisma.message.create({
     data: {
       conversationId: conversation.id,
@@ -80,7 +79,6 @@ async function processInboundMessage(inbound: {
     },
   });
 
-  // Update conversation
   await prisma.conversation.update({
     where: { id: conversation.id },
     data: {
@@ -89,19 +87,29 @@ async function processInboundMessage(inbound: {
     },
   });
 
-  // Mark as read
   try {
     await markMessageRead(inbound.messageId);
   } catch {
     // Non-critical
   }
 
-  // Run keyword workflows
+  // Send new lead to Google Sheets immediately
+  if (isNewContact || isNewConversation) {
+    const sheetsUrl = await getSetting("SHEETS_WEBHOOK_URL");
+    if (sheetsUrl) {
+      await sendLeadToSheets(sheetsUrl, {
+        phone,
+        qualification: "pendiente",
+        conversationId: conversation.id,
+        lastMessage: inbound.text || "",
+      });
+    }
+  }
+
   if (inbound.text) {
     await runWorkflowsForInboundMessage(phone, inbound.text, conversation.id);
   }
 
-  // AI agent handling
   await handleAIAgent(conversation.id, phone, inbound.text);
 }
 
@@ -133,16 +141,13 @@ async function handleAIAgent(
     if (config?.mode === "keyword" && config.keyword) {
       shouldRespond = userText.toLowerCase().includes(String(config.keyword).toLowerCase());
     } else if (config?.mode === "timeout" && config.timeoutMinutes) {
-      // Check last human message time
       const lastHumanMsg = conversation.messages
         .filter((m: { direction: string; sentBy: string | null }) => m.direction === "outbound" && m.sentBy === "human")
         .pop();
-
       if (!lastHumanMsg) {
         shouldRespond = true;
       } else {
-        const diffMins =
-          (Date.now() - new Date(lastHumanMsg.createdAt).getTime()) / 60000;
+        const diffMins = (Date.now() - new Date(lastHumanMsg.createdAt).getTime()) / 60000;
         shouldRespond = diffMins >= Number(config.timeoutMinutes);
       }
     }
@@ -156,14 +161,14 @@ async function handleAIAgent(
     if (!openaiKey) return;
 
     const history = buildConversationHistory(conversation.messages);
-    const reply = await generateReply(history, systemPrompt);
+    const reply = await generateReply(history, systemPrompt || undefined, openaiKey);
 
     if (!reply) return;
 
-    // Send via WhatsApp using token from DB
     const accessToken = await getSetting("META_ACCESS_TOKEN");
     const phoneNumberId = await getSetting("META_PHONE_NUMBER_ID");
     let waMessageId: string | undefined;
+
     if (accessToken && phoneNumberId) {
       const res = await fetch(
         `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
@@ -185,7 +190,6 @@ async function handleAIAgent(
       waMessageId = data?.messages?.[0]?.id;
     }
 
-    // Save AI message
     await prisma.message.create({
       data: {
         conversationId,
@@ -202,6 +206,20 @@ async function handleAIAgent(
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
     });
+
+    // Update Google Sheets with extracted lead data (every 3 messages to avoid excess calls)
+    const msgCount = conversation.messages.length;
+    if (msgCount % 3 === 0 || msgCount <= 3) {
+      const sheetsUrl = await getSetting("SHEETS_WEBHOOK_URL");
+      if (sheetsUrl) {
+        const updatedHistory = [
+          ...buildConversationHistory(conversation.messages),
+          { role: "assistant" as const, content: reply },
+        ];
+        const leadData = await extractLeadData(updatedHistory, phone, openaiKey);
+        await sendLeadToSheets(sheetsUrl, { ...leadData, conversationId, phone });
+      }
+    }
   } catch (err) {
     console.error("AI agent error:", err);
   }
