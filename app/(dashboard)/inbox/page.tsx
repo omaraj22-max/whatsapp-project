@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Bot, User, RefreshCw, Search, Phone, LayoutTemplate, X } from "lucide-react";
+import { Send, Bot, User, RefreshCw, Search, Phone, LayoutTemplate, X, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -164,6 +164,18 @@ export default function InboxPage() {
     );
   };
 
+  const closeConversation = async () => {
+    if (!selected) return;
+    await fetch(`/api/conversations/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "closed" }),
+    });
+    setConversations((prev) => prev.filter((c) => c.id !== selected.id));
+    setSelected(null);
+    setMessages([]);
+  };
+
   const filtered = conversations.filter((c) => {
     const name = c.contact.name || c.contact.phone;
     return name.toLowerCase().includes(search.toLowerCase());
@@ -291,6 +303,15 @@ export default function InboxPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={closeConversation}
+                className="text-xs text-gray-500 hover:text-red-600 hover:border-red-300"
+              >
+                <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                Cerrar
+              </Button>
             </div>
           </div>
 
