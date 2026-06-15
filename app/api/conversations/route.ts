@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const conversations = await prisma.conversation.findMany({
+      where: { status: { in: ["open", "waiting"] } },
       include: {
         contact: true,
         messages: {
