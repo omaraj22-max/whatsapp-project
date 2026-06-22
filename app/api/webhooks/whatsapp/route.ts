@@ -45,6 +45,8 @@ async function processInboundMessage(inbound: {
   timestamp: string;
   type: string;
   text?: string;
+  caption?: string;
+  mediaId?: string;
 }) {
   const phone = inbound.from;
 
