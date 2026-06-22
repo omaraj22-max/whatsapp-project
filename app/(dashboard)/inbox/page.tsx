@@ -31,6 +31,7 @@ interface Message {
   status: string | null;
   sentBy: string | null;
   createdAt: string;
+  metadata?: { mediaId?: string } | null;
 }
 
 interface Conversation {
@@ -341,7 +342,28 @@ export default function InboxPage() {
                       <span className="text-xs">Template</span>
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  {msg.metadata?.mediaId && msg.type === "image" ? (
+                    <img
+                      src={`/api/media/${msg.metadata.mediaId}`}
+                      alt="imagen"
+                      className="rounded-xl max-w-full max-h-64 object-cover mb-1"
+                    />
+                  ) : msg.metadata?.mediaId && msg.type === "audio" ? (
+                    <audio controls src={`/api/media/${msg.metadata.mediaId}`} className="max-w-full mb-1" />
+                  ) : msg.metadata?.mediaId && msg.type === "video" ? (
+                    <video controls src={`/api/media/${msg.metadata.mediaId}`} className="rounded-xl max-w-full max-h-64 mb-1" />
+                  ) : msg.metadata?.mediaId && msg.type === "document" ? (
+                    <a
+                      href={`/api/media/${msg.metadata.mediaId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 underline text-sm mb-1"
+                    >
+                      📎 {msg.content !== `[${msg.type}]` ? msg.content : "Ver documento"}
+                    </a>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  )}
                   <p
                     className={`text-xs mt-1 ${
                       msg.direction === "outbound" ? "text-emerald-200" : "text-gray-400"

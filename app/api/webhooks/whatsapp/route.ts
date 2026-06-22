@@ -75,7 +75,8 @@ async function processInboundMessage(inbound: {
       waMessageId: inbound.messageId,
       direction: "inbound",
       type: inbound.type,
-      content: inbound.text || `[${inbound.type}]`,
+      content: inbound.text || inbound.caption || `[${inbound.type}]`,
+      metadata: inbound.mediaId ? { mediaId: inbound.mediaId } : undefined,
     },
   });
 
