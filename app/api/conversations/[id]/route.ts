@@ -26,7 +26,7 @@ export async function PATCH(
   const { id } = await params;
   try {
     const body = await request.json();
-    const allowed = ["status", "agentMode", "agentConfig", "assignedTo"];
+    const allowed = ["status", "agentMode", "agentConfig", "assignedTo", "unreadCount"];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];

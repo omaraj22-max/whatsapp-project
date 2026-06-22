@@ -106,6 +106,11 @@ export default function InboxPage() {
     setConversations((prev) =>
       prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
     );
+    fetch(`/api/conversations/${conv.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unreadCount: 0 }),
+    });
   };
 
   const sendMessage = async () => {
